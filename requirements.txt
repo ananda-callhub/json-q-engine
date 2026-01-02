@@ -1,0 +1,1 @@
+# Core requirements (none - the package has zero dependencies)
