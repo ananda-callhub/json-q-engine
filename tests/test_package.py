@@ -6,8 +6,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from json_rule_engine import (
-    Field, Q, RuleEngine,
-    evaluate, matches
+    Field, Q, RuleEngine
 )
 
 
@@ -15,11 +14,14 @@ def main():
     print("Testing JSON Rule Engine Package")
     print("=" * 40)
     
+    # Create engine once
+    engine = RuleEngine()
+    
     # Test 1: Build and evaluate a simple rule
     print("\nTest 1: Simple rule")
     rule = Field('city').equals('NYC')
     data = {'city': 'NYC', 'age': 25}
-    result = evaluate(rule, data)
+    result = engine.evaluate(rule, data)
     print(f"  Rule: city == 'NYC'")
     print(f"  Data: {data}")
     print(f"  Result: {result}")
@@ -28,7 +30,7 @@ def main():
     # Test 2: Combined rules
     print("\nTest 2: Combined rules")
     rule = Field('city').equals('NYC') & Field('age').gt(18)
-    result = evaluate(rule, data)
+    result = engine.evaluate(rule, data)
     print(f"  Rule: city == 'NYC' AND age > 18")
     print(f"  Data: {data}")
     print(f"  Result: {result}")
@@ -37,7 +39,7 @@ def main():
     # Test 3: Q objects
     print("\nTest 3: Q objects")
     rule = Q(city='NYC') & Q(age__gt=18)
-    result = evaluate(rule, data)
+    result = engine.evaluate(rule, data)
     print(f"  Rule: Q(city='NYC') & Q(age__gt=18)")
     print(f"  Data: {data}")
     print(f"  Result: {result}")
@@ -47,7 +49,7 @@ def main():
     print("\nTest 4: Array operations")
     data_with_tags = {**data, 'tags': ['vip', 'premium']}
     rule = Field('tags').has_any(['vip'])
-    result = evaluate(rule, data_with_tags)
+    result = engine.evaluate(rule, data_with_tags)
     print(f"  Rule: tags has any ['vip']")
     print(f"  Data: {data_with_tags}")
     print(f"  Result: {result}")
@@ -56,7 +58,7 @@ def main():
     # Test 5: JSON evaluation
     print("\nTest 5: Direct JSON evaluation")
     json_rule = {"==": [{"var": "city"}, "NYC"]}
-    result = evaluate(json_rule, data)
+    result = engine.evaluate(json_rule, data)
     print(f"  JSON: {json_rule}")
     print(f"  Data: {data}")
     print(f"  Result: {result}")

@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Union
 import re
 
-from .core import Rule, RuleSet, Dependencies, Operator, Logic
+from .core import Rule, RuleSet, RuleFields, DependencyConfig, Operator, Logic
 
 
 __all__ = [
@@ -236,38 +236,39 @@ class Condition(Rule):
         # Standard comparison
         return {self.operator.value: [var, self.value]}
     
-    def _normalize_values(self, values: Any) -> List[str]:
-        """Ensure values are a list of strings."""
+    def _normalize_values(self, values: Any) -> List:
+        """Ensure values are a list."""
         if not isinstance(values, (list, tuple)):
             values = [values]
-        return [str(v) for v in values]
+        return list(values)
     
-    def get_dependencies(self) -> Dependencies:
+    def get_dependencies(self, config: Optional[DependencyConfig] = None) -> RuleFields:
         """Extract dependencies from this condition."""
-        deps = Dependencies()
+        if config is None:
+            config = DependencyConfig()
         
-        if self.field == 'tags' and self.operator in (Operator.SOME, Operator.NONE, Operator.ALL):
+        deps = RuleFields()
+        
+        # Check if this field is configured as an ID reference
+        if self.field in config.id_fields and self.operator in (Operator.SOME, Operator.NONE, Operator.ALL):
+            reference_type = config.id_fields[self.field]
             for v in self._normalize_values(self.value):
                 try:
-                    deps.tag_ids.add(int(v))
+                    deps.add_id_reference(reference_type, int(v))
                 except ValueError:
                     pass
         
-        elif self.field == 'phonebooks' and self.operator in (Operator.SOME, Operator.NONE, Operator.ALL):
-            for v in self._normalize_values(self.value):
+        # Check for custom field pattern
+        elif config.custom_field_pattern and re.match(config.custom_field_pattern, self.field):
+            match = re.match(config.custom_field_pattern, self.field)
+            if match and match.groups():
                 try:
-                    deps.phonebook_ids.add(int(v))
-                except ValueError:
+                    deps.add_custom_field(int(match.group(1)))
+                except (ValueError, IndexError):
                     pass
-        
-        elif self.field.startswith('cf.'):
-            # Custom field: cf.123.number
-            match = re.match(r'^cf\.(\d+)\.\w+$', self.field)
-            if match:
-                deps.custom_field_ids.add(int(match.group(1)))
         
         else:
-            deps.fields.add(self.field)
+            deps.add_field(self.field)
         
         return deps
     
@@ -341,8 +342,8 @@ class Q(Rule):
     def to_json(self) -> Dict[str, Any]:
         return self._condition.to_json()
     
-    def get_dependencies(self) -> Dependencies:
-        return self._condition.get_dependencies()
+    def get_dependencies(self, config: Optional[DependencyConfig] = None) -> RuleFields:
+        return self._condition.get_dependencies(config)
     
     def __repr__(self) -> str:
         return f"Q({self.field}__{self.operator.name.lower()}={self.value!r})"
@@ -394,15 +395,15 @@ class JsonRule(Rule):
         """Return the wrapped JSON."""
         return self._json
     
-    def get_dependencies(self) -> Dependencies:
+    def get_dependencies(self, config: Optional[DependencyConfig] = None) -> RuleFields:
         """Extract dependencies from the JSON rule."""
-        if self._deps is None:
-            self._deps = self._extract_deps(self._json)
-        return self._deps
+        if config is None:
+            config = DependencyConfig()
+        return self._extract_deps(self._json, config)
     
-    def _extract_deps(self, rules: Any) -> Dependencies:
+    def _extract_deps(self, rules: Any, config: DependencyConfig) -> RuleFields:
         """Recursively extract dependencies."""
-        deps = Dependencies()
+        deps = RuleFields()
         
         if not isinstance(rules, dict):
             return deps
@@ -418,29 +419,25 @@ class JsonRule(Rule):
                         field = value[0]['var']
                         # Extract IDs from condition
                         ids = self._extract_ids(value[1])
-                        self._add_m2m_deps(field, ids, deps)
-                    deps = deps.merge(self._extract_deps(value[1]))
+                        self._add_m2m_deps(field, ids, deps, config)
+                    deps = deps.merge(self._extract_deps(value[1], config))
             
             elif isinstance(value, list):
                 for item in value:
-                    deps = deps.merge(self._extract_deps(item))
+                    deps = deps.merge(self._extract_deps(item, config))
             
             elif isinstance(value, dict):
-                deps = deps.merge(self._extract_deps(value))
+                deps = deps.merge(self._extract_deps(value, config))
         
         return deps
     
-    def _add_field_dep(self, field: str, deps: Dependencies) -> None:
+    def _add_field_dep(self, field: str, deps: RuleFields) -> None:
         """Add field to dependencies."""
         if not field or field == '':
             return
         
-        if field.startswith('cf.'):
-            match = re.match(r'^cf\.(\d+)\.\w+$', field)
-            if match:
-                deps.custom_field_ids.add(int(match.group(1)))
-        elif field not in ('tags', 'phonebooks'):
-            deps.fields.add(field)
+        # Just add as a regular field - let config determine special handling
+        deps.add_field(field)
     
     def _extract_ids(self, condition: Any) -> List[int]:
         """Extract IDs from M2M condition."""
@@ -457,13 +454,12 @@ class JsonRule(Rule):
                             pass
         return ids
     
-    def _add_m2m_deps(self, field: str, ids: List[int], deps: Dependencies) -> None:
+    def _add_m2m_deps(self, field: str, ids: List[int], deps: RuleFields, config: DependencyConfig) -> None:
         """Add M2M IDs to dependencies."""
-        for id_val in ids:
-            if field == 'tags':
-                deps.tag_ids.add(id_val)
-            elif field == 'phonebooks':
-                deps.phonebook_ids.add(id_val)
+        if field in config.id_fields:
+            reference_type = config.id_fields[field]
+            for id_val in ids:
+                deps.add_id_reference(reference_type, id_val)
     
     def __repr__(self) -> str:
         return f"JsonRule({self._json})"

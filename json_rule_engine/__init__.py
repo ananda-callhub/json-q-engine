@@ -5,30 +5,30 @@ Features:
 - Pythonic Rule Builder: Build JSON rules using fluent API
 - Rule Evaluator: Evaluate rules against any data
 - Django Q Translator: Convert rules to Django ORM queries
+- Configurable Dependencies: No hardcoded domain assumptions
 
 Quick Start:
-    # Build rules
-    from json_rule_engine import Field, Q
+    # Initialize engine
+    from json_rule_engine import RuleEngine, Field, Q
     
+    engine = RuleEngine()
+    
+    # Build rules
     rule = Field('city').equals('NYC') & Field('age').gt(18)
     # or
     rule = Q(city='NYC') & Q(age__gt=18)
     
     # Evaluate
-    from json_rule_engine import evaluate
+    result = engine.evaluate(rule, {'city': 'NYC', 'age': 25})  # True
     
-    result = evaluate(rule, {'city': 'NYC', 'age': 25})  # True
-    
-    # Django Q
-    from json_rule_engine import to_q
-    
-    q = to_q(rule)
+    # Django Q (if Django installed)
+    q = engine.to_q(rule)
     contacts = Contact.objects.filter(q)
 
 Documentation: https://github.com/anandabehera/json-rule-engine
 """
 
-__version__ = '1.0.0'
+__version__ = '2.0.0'  # Updated to 2.0.0 for breaking changes
 __author__ = 'Ananda Behera'
 __email__ = 'ananda.behera@example.com'
 __license__ = 'MIT'
@@ -36,11 +36,12 @@ __license__ = 'MIT'
 
 # Core classes
 from .core import (
-    Evaluatable,
+    RuleEntity,
     Rule,
     RuleSet,
-    EvalResult,
-    Dependencies,
+    EvaluationResult,
+    RuleFields,
+    DependencyConfig,
     Operator,
     Logic,
 )
@@ -57,28 +58,17 @@ from .builder import (
     NOT,
 )
 
-# Evaluator classes
-from .evaluator import (
-    RuleEngine,
-    evaluate,
-    matches,
-)
+# Unified Rule Engine (main API)
+from .evaluator import RuleEngine
 
-# Django Q classes (optional)
+# Django Q classes (optional) - now accessed through RuleEngine
 try:
-    from .django_q import (
-        QTranslator,
-        JsonToQ,
-        to_q,
-        json_to_q,
-    )
+    from .django_q import QTranslator, JsonToQ
     _HAS_DJANGO = True
 except ImportError:
     _HAS_DJANGO = False
     QTranslator = None
     JsonToQ = None
-    to_q = None
-    json_to_q = None
 
 
 __all__ = [
@@ -88,16 +78,20 @@ __all__ = [
     '__email__',
     '__license__',
     
-    # Core
-    'Evaluatable',
+    # Main API - RuleEngine
+    'RuleEngine',
+    
+    # Core interfaces
+    'RuleEntity',
     'Rule',
     'RuleSet',
-    'EvalResult',
-    'Dependencies',
+    'EvaluationResult',
+    'RuleFields',
+    'DependencyConfig',
     'Operator',
     'Logic',
     
-    # Builder
+    # Rule builders
     'Field',
     'Condition',
     'Q',
@@ -107,14 +101,7 @@ __all__ = [
     'OR',
     'NOT',
     
-    # Evaluator
-    'RuleEngine',
-    'evaluate',
-    'matches',
-    
-    # Django (if available)
+    # Django (accessed through RuleEngine.to_q())
     'QTranslator',
     'JsonToQ',
-    'to_q',
-    'json_to_q',
 ]

@@ -2,8 +2,8 @@
 
 import pytest
 from json_rule_engine import (
-    RuleEngine, Field, Q, evaluate, matches,
-    Evaluatable, EvalResult
+    RuleEngine, Field, Q,
+    RuleEntity, EvaluationResult
 )
 
 
@@ -198,10 +198,10 @@ class TestCustomOperators:
         assert engine.evaluate({"is_odd": [{"var": "num"}]}, {"num": 3}) is True
 
 
-class TestEvaluatable:
+class TestRuleEntity:
     """Test Evaluatable interface."""
     
-    class Contact(Evaluatable):
+    class Contact(RuleEntity):
         def __init__(self, id, name, city, age, tags=None):
             self.id = id
             self.name = name
@@ -226,7 +226,7 @@ class TestEvaluatable:
         rule = Field('city').equals('NYC') & Field('age').gt(18)
         
         result = engine.test(rule, contact)
-        assert isinstance(result, EvalResult)
+        assert isinstance(result, EvaluationResult)
         assert result.matches is True
         assert result.eval_time_ms >= 0
     
@@ -266,29 +266,31 @@ class TestEvaluatable:
         assert contacts[3] in matches
 
 
-class TestModuleLevelFunctions:
-    """Test module-level convenience functions."""
+class TestUnifiedAPI:
+    """Test unified API through RuleEngine."""
     
-    def test_evaluate_function(self):
+    def test_engine_evaluate(self):
+        engine = RuleEngine()
         data = {'city': 'NYC', 'age': 25}
         
         # Test with rule
         rule = Field('city').equals('NYC')
-        assert evaluate(rule, data) is True
+        assert engine.evaluate(rule, data) is True
         
         # Test with JSON
         json_rule = {"==": [{"var": "city"}, "NYC"]}
-        assert evaluate(json_rule, data) is True
+        assert engine.evaluate(json_rule, data) is True
     
-    def test_matches_function(self):
+    def test_engine_matches(self):
+        engine = RuleEngine()
         data = {'city': 'NYC', 'age': 25}
         
         # Test with rule
         rule = Field('city').equals('NYC')
-        assert matches(rule, data) is True
+        assert engine.matches(rule, data) is True
         
         rule = Field('city').equals('LA')
-        assert matches(rule, data) is False
+        assert engine.matches(rule, data) is False
 
 
 class TestEdgeCases:

@@ -350,43 +350,56 @@ class TestDependencies:
     """Test dependency extraction."""
     
     def test_simple_field_dependency(self):
+        from json_rule_engine import DependencyConfig
+        config = DependencyConfig()
         rule = Field('city').equals('NYC')
-        deps = rule.get_dependencies()
+        deps = rule.get_dependencies(config)
         assert 'city' in deps.fields
-        assert len(deps.tag_ids) == 0
-        assert len(deps.phonebook_ids) == 0
+        assert len(deps.id_references) == 0
+        assert len(deps.custom_fields) == 0
         assert len(deps.custom_field_ids) == 0
     
     def test_tag_dependency(self):
-        rule = Field('tags').has_any(['101', '102'])
-        deps = rule.get_dependencies()
-        assert 101 in deps.tag_ids
-        assert 102 in deps.tag_ids
+        from json_rule_engine import DependencyConfig
+        config = DependencyConfig(id_fields={'tags': 'tag_ids'})
+        rule = Field('tags').has_any([101, 102])
+        deps = rule.get_dependencies(config)
+        assert 101 in deps.id_references.get('tag_ids', set())
+        assert 102 in deps.id_references.get('tag_ids', set())
         assert 'tags' not in deps.fields
     
     def test_phonebook_dependency(self):
-        rule = Field('phonebooks').has_any(['201', '202'])
-        deps = rule.get_dependencies()
-        assert 201 in deps.phonebook_ids
-        assert 202 in deps.phonebook_ids
+        from json_rule_engine import DependencyConfig
+        config = DependencyConfig(id_fields={'phonebooks': 'phonebook_ids'})
+        rule = Field('phonebooks').has_any([201, 202])
+        deps = rule.get_dependencies(config)
+        assert 201 in deps.id_references.get('phonebook_ids', set())
+        assert 202 in deps.id_references.get('phonebook_ids', set())
         assert 'phonebooks' not in deps.fields
     
     def test_custom_field_dependency(self):
+        from json_rule_engine import DependencyConfig
+        config = DependencyConfig(custom_field_pattern=r'^cf\.(\d+)\.\w+$')
         rule = Field('cf.123.number').gt(100)
-        deps = rule.get_dependencies()
-        assert 123 in deps.custom_field_ids
+        deps = rule.get_dependencies(config)
+        assert 123 in deps.custom_fields
         assert 'cf.123.number' not in deps.fields
     
     def test_combined_dependencies(self):
+        from json_rule_engine import DependencyConfig
+        config = DependencyConfig(
+            id_fields={'tags': 'tag_ids', 'phonebooks': 'phonebook_ids'},
+            custom_field_pattern=r'^cf\.(\d+)\.\w+$'
+        )
         rule = (
             Field('city').equals('NYC') &
-            Field('tags').has_any(['101']) &
-            Field('phonebooks').has_none(['201']) &
+            Field('tags').has_any([101]) &
+            Field('phonebooks').has_none([201]) &
             Field('cf.123.number').gt(100)
         )
-        deps = rule.get_dependencies()
+        deps = rule.get_dependencies(config)
         
         assert 'city' in deps.fields
-        assert 101 in deps.tag_ids
-        assert 201 in deps.phonebook_ids
-        assert 123 in deps.custom_field_ids
+        assert 101 in deps.id_references.get('tag_ids', set())
+        assert 201 in deps.id_references.get('phonebook_ids', set())
+        assert 123 in deps.custom_fields

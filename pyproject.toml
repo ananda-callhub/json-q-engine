@@ -4,16 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "json-rule-engine"
-version = "1.0.0"
+version = "2.0.0"
 description = "A lightweight library for building, evaluating, and translating JSON-based rules"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
-    {name = "Ananda Behera", email = "ananda.behera@example.com"}
+    {name = "Ananda Behera", email = "behera.anand1@gmail.com"},
+    {name = "Ananda Behera", email = "ananda@callhub.io"}
 ]
 maintainers = [
-    {name = "Ananda Behera", email = "ananda.behera@example.com"}
+    {name = "Ananda Behera", email = "behera.anand1@gmail.com"},
+    {name = "Ananda Behera", email = "ananda@callhub.io"}
 ]
 keywords = [
     "json",
@@ -70,10 +72,10 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/anandabehera/json-rule-engine"
+Homepage = "https://github.com/ananda-callhub/json-q-engine"
 Documentation = "https://json-rule-engine.readthedocs.io"
-Repository = "https://github.com/anandabehera/json-rule-engine"
-Issues = "https://github.com/anandabehera/json-rule-engine/issues"
+Repository = "https://github.com/ananda-callhub/json-q-engine"
+Issues = "https://github.com/ananda-callhub/json-q-engine/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -115,10 +117,6 @@ python_functions = "test_*"
 addopts = [
     "--strict-markers",
     "--tb=short",
-    "--cov=json_rule_engine",
-    "--cov-report=term-missing:skip-covered",
-    "--cov-report=html",
-    "--cov-report=xml",
 ]
 
 [tool.coverage.run]

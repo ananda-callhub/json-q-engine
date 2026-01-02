@@ -9,8 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from json_rule_engine import (
     Field, Q, RuleEngine, 
-    RuleBuilder, JsonRule,
-    evaluate, matches
+    RuleBuilder, JsonRule
 )
 
 
@@ -96,7 +95,7 @@ def main():
     }
     print(f"JSON Rule: {json_rule}")
     
-    result = evaluate(json_rule, data)
+    result = engine.evaluate(json_rule, data)
     print(f"Evaluation result: {result}")
     
     # Wrap existing JSON and combine

@@ -6,16 +6,14 @@
 
 A powerful and lightweight Python library for building, evaluating, and translating JSON-based business rules. Perfect for creating dynamic filtering systems, decision engines, and converting rules to Django ORM queries.
 
-## Features
+## Key Features
 
-- **Pythonic Rule Builder**: Build JSON rules using fluent API
-- **Nested Rule Support**: Build complex nested AND/OR/NOT structures
-- **JSON to Q Conversion**: Convert JSON rules directly to Django Q objects  
-- **Rule Evaluator**: Evaluate rules against any data object
-- **Dependency Extraction**: Extract field dependencies for CDC/caching
-- **Frontend Parser**: Parse UI rule builder format
-- **Extensible**: Add custom operators easily
-- **Zero Dependencies**: Core library has no external dependencies
+- 🎯 **Unified API**: Single `RuleEngine` class for all functionality
+- 🔧 **Configurable**: No hardcoded domain assumptions - works for any use case
+- 🐍 **Pythonic**: Intuitive `Field()` and `Q()` builders for rule creation
+- ⚡ **Zero Dependencies**: Core functionality requires no external packages
+- 🔌 **Django Integration**: Optional Django Q object conversion
+- 📊 **Extensible**: Add custom operators and configurations
 
 ## Installation
 
@@ -25,287 +23,404 @@ pip install json-rule-engine
 
 # With Django support
 pip install json-rule-engine[django]
-
-# Development installation
-pip install json-rule-engine[dev]
 ```
 
 ## Quick Start
 
-### 1. Build Rules (Pythonic)
+### Initialize the Engine
 
 ```python
-from json_rule_engine import Field, Q
+from json_rule_engine import RuleEngine, Field, Q
 
-# Fluent builder
-rule = Field('city').equals('NYC')
+# Create the engine - single entry point for all functionality
+engine = RuleEngine()
+```
+
+### Build Rules
+
+```python
+# Using Field builder (recommended)
 rule = Field('age').greater_than(18)
-rule = Field('tags').has_any(['vip', 'premium'])
+rule = Field('city').equals('NYC')
+rule = Field('email').contains('@gmail.com')
 
-# Django-style Q
-rule = Q(city='NYC')
-rule = Q(age__gt=18)
-rule = Q(tags__has_any=['vip'])
-
-# Combine with & | ~
+# Combine rules with & (AND), | (OR), ~ (NOT)
 rule = (
     Field('city').equals('NYC') &
-    Field('age').gt(18) |
-    ~Field('status').equals('blocked')
+    Field('age').gt(18) &
+    Field('tags').has_any(['premium', 'vip'])
 )
 
-# Get JSON
-json_rule = rule.to_json()
-# {"and": [{"==": [{"var": "city"}, "NYC"]}, {">": [{"var": "age"}, 18]}]}
+# Using Django-style Q objects
+rule = Q(city='NYC') & Q(age__gt=18)
 ```
 
-### 2. Nested Rule Building
+### Evaluate Rules
 
 ```python
-from json_rule_engine import RuleBuilder, JsonRule
-
-# Complex nested structures
-rule = RuleBuilder.and_(
-    RuleBuilder.field('city').equals('NYC'),
-    RuleBuilder.or_(
-        RuleBuilder.field('state').equals('NY'),
-        RuleBuilder.field('state').equals('CA'),
-    ),
-    RuleBuilder.field('tags').has_any(['vip']),
-)
-
-# Wrap existing JSON and combine with builder
-existing_json = {"==": [{"var": "status"}, "active"]}
-combined = JsonRule(existing_json) & Field('age').gt(18)
-```
-
-### 3. Rule Engine - Evaluate Rules
-
-```python
-from json_rule_engine import RuleEngine
-
-engine = RuleEngine()
-
-# Evaluate against dict
+# Evaluate against dictionary
 data = {'city': 'NYC', 'age': 25, 'tags': ['vip']}
-result = engine.evaluate(rule, data)  # Any (result)
-result = engine.matches(rule, data)   # bool (True/False)
+result = engine.evaluate(rule, data)  # True
 
-# Evaluate raw JSON
-json_rule = {"==": [{"var": "city"}, "NYC"]}
-result = engine.evaluate(json_rule, data)  # True
+# Check matches (returns bool)
+matches = engine.matches(rule, data)  # True
 ```
 
-### 4. Evaluate Against Objects
+### Django Integration
 
 ```python
-from json_rule_engine import Evaluatable, RuleEngine
+# Convert to Django Q object (requires Django)
+q = engine.to_q(rule)
 
-class Contact(Evaluatable):
-    def __init__(self, name, city, age):
+# Use in Django ORM
+from myapp.models import Contact
+contacts = Contact.objects.filter(q)
+```
+
+## Advanced Usage
+
+### Custom Configuration
+
+The engine is fully configurable - no hardcoded assumptions:
+
+```python
+from json_rule_engine import RuleEngine, DependencyConfig
+
+# Configure for your domain (e-commerce example)
+config = DependencyConfig(
+    id_fields={
+        'categories': 'category_ids',
+        'products': 'product_ids',
+        'vendors': 'vendor_ids',
+    },
+    custom_field_pattern=r'^custom\.(\d+)\.(\w+)$'
+)
+
+# Initialize engine with custom config
+engine = RuleEngine(dependency_config=config)
+
+# Now your fields are recognized
+rule = Field('categories').has_any([101, 102])
+deps = engine.get_dependencies(rule)
+print(deps.id_references['category_ids'])  # {101, 102}
+```
+
+### Working with Objects
+
+```python
+from json_rule_engine import Evaluatable
+
+class Customer(Evaluatable):
+    def __init__(self, name, age, city, tags=None):
         self.name = name
-        self.city = city
         self.age = age
+        self.city = city
+        self.tags = tags or []
     
     def to_eval_dict(self):
         return {
             'name': self.name,
-            'city': self.city,
             'age': self.age,
+            'city': self.city,
+            'tags': self.tags
         }
 
-engine = RuleEngine()
-contact = Contact('John', 'NYC', 25)
+# Create customers
+customers = [
+    Customer('Alice', 25, 'NYC', ['vip']),
+    Customer('Bob', 17, 'LA', ['regular']),
+    Customer('Charlie', 30, 'NYC', ['premium'])
+]
 
-# Single evaluation with timing
-result = engine.test(rule, contact)
-# EvalResult(matches=True, eval_time_ms=0.01)
+# Define rule
+rule = Field('city').equals('NYC') & Field('age').gte(18)
 
 # Batch evaluation
-contacts = [Contact(...), Contact(...), ...]
-results = engine.batch(rule, contacts)
-# {'matches': [...], 'non_matches': [...]}
+results = engine.batch(rule, customers)
+print(f"Matches: {results['matches']}")      # [Alice, Charlie]
+print(f"Non-matches: {results['non_matches']}") # [Bob]
 
-# Filter matching
-matches = engine.filter(rule, contacts)
-# [Contact(...), Contact(...)]
+# Filter matching objects
+nyc_adults = engine.filter(rule, customers)  # [Alice, Charlie]
+
+# Test with timing
+result = engine.test(rule, customers[0])
+print(f"Match: {result.matches}, Time: {result.eval_time_ms}ms")
 ```
 
-### 5. JSON to Django Q (Direct Conversion)
+### Custom Operators
 
 ```python
-from json_rule_engine import json_to_q, to_q, JsonToQ
+# Register custom operators
+def between(values, data):
+    """Check if value is between min and max."""
+    val, min_val, max_val = values
+    return min_val <= val <= max_val
 
-# Direct JSON to Q conversion
-json_rules = {
+engine.register_operator('between', between)
+
+# Use custom operator
+rule = {"between": [{"var": "age"}, 18, 65]}
+result = engine.evaluate(rule, {"age": 25})  # True
+```
+
+### Complex Nested Rules
+
+```python
+# Build complex business logic
+rule = RuleBuilder.and_(
+    RuleBuilder.field('status').equals('active'),
+    RuleBuilder.or_(
+        RuleBuilder.field('role').equals('admin'),
+        RuleBuilder.and_(
+            RuleBuilder.field('role').equals('user'),
+            RuleBuilder.field('permissions').has_any(['write', 'delete'])
+        )
+    ),
+    RuleBuilder.not_(
+        RuleBuilder.field('banned').equals(True)
+    )
+)
+
+# Evaluate complex rule
+data = {
+    'status': 'active',
+    'role': 'user',
+    'permissions': ['read', 'write'],
+    'banned': False
+}
+result = engine.evaluate(rule, data)  # True
+```
+
+### Working with JSON Rules
+
+```python
+# Parse existing JSON rules
+json_rule = {
     "and": [
-        {"==": [{"var": "city"}, "NYC"]},
+        {"==": [{"var": "status"}, "active"]},
         {"or": [
-            {"==": [{"var": "state"}, "NY"]},
-            {"==": [{"var": "state"}, "CA"]}
+            {">": [{"var": "credits"}, 100]},
+            {"==": [{"var": "plan"}, "premium"]}
         ]}
     ]
 }
 
-q = json_to_q(json_rules)
-# Result: Q(city='NYC') & (Q(state='NY') | Q(state='CA'))
+# Evaluate JSON directly
+result = engine.evaluate(json_rule, data)
 
-# From Rule builder
-rule = Field('city').equals('NYC') & Field('tags').has_any(['vip'])
-q = to_q(rule)
+# Or wrap and combine with builder
+from json_rule_engine import JsonRule
 
-# Using JsonToQ class with validation
-converter = JsonToQ()
-is_valid, errors = converter.validate(json_rules)
-q, explanation = converter.convert_with_explanation(json_rules)
-
-# Use with Django ORM
-contacts = Contact.objects.filter(q)
+wrapped = JsonRule(json_rule)
+combined = wrapped & Field('region').equals('US')
 ```
 
 ## API Reference
 
-### Rule Builder
+### RuleEngine Methods
 
-| Method | JSON Output |
-|--------|-------------|
-| `Field('x').equals(v)` | `{"==": [{"var": "x"}, v]}` |
-| `Field('x').not_equals(v)` | `{"!=": [{"var": "x"}, v]}` |
-| `Field('x').gt(v)` | `{">": [{"var": "x"}, v]}` |
-| `Field('x').gte(v)` | `{">=": [{"var": "x"}, v]}` |
-| `Field('x').lt(v)` | `{"<": [{"var": "x"}, v]}` |
-| `Field('x').lte(v)` | `{"<=": [{"var": "x"}, v]}` |
-| `Field('x').contains(v)` | `{"in": [v, {"var": "x"}]}` |
-| `Field('x').startswith(v)` | `{"_startswith": [...]}` |
-| `Field('x').endswith(v)` | `{"_endswith": [...]}` |
-| `Field('x').is_empty()` | `{"or": [{"==": [...]}, ...]}` |
-| `Field('x').has_any([...])` | `{"some": [{"var": "x"}, ...]}` |
-| `Field('x').has_all([...])` | `{"and": [...]}` |
-| `Field('x').has_none([...])` | `{"none": [{"var": "x"}, ...]}` |
-
-### Nested Building
+The `RuleEngine` class is the main API entry point:
 
 ```python
-RuleBuilder.and_(rule1, rule2, ...)    # Nested AND
-RuleBuilder.or_(rule1, rule2, ...)     # Nested OR  
-RuleBuilder.not_(rule)                  # Nested NOT
-RuleBuilder.field('name')               # Create Field
-RuleBuilder.from_json(dict)             # Wrap existing JSON
-RuleBuilder.from_frontend(dict)         # Parse frontend format
+engine = RuleEngine(
+    dependency_config=None,  # Optional: Custom dependency configuration
+    django_field_map=None    # Optional: Custom Django field mappings
+)
 
-JsonRule(dict)                          # JSON wrapper
-JsonRule(dict) & Field('x').eq(y)       # Combine JSON with builder
+# Rule Evaluation
+engine.evaluate(rule, data)           # Evaluate rule against data
+engine.matches(rule, data)            # Returns bool
+engine.test(rule, obj)                # Test Evaluatable object with timing
+engine.batch(rule, objects)           # Evaluate multiple objects
+engine.filter(rule, objects)          # Filter matching objects
+
+# Django Integration
+engine.to_q(rule)                      # Convert to Django Q object
+engine.to_q_with_explanation(rule)    # Get Q object with explanation
+engine.validate_json_rules(json)      # Validate JSON structure
+
+# Dependency Extraction
+engine.get_dependencies(rule)         # Extract field dependencies
+
+# Configuration
+engine.register_operator(name, func)  # Add custom operator
+engine.configure_dependencies(config) # Update dependency config
+engine.configure_django_fields(map)   # Update Django mappings
 ```
 
-### Q Style Builder
+### Rule Builders
 
 ```python
-Q(field='value')           # equals
-Q(field__eq='value')       # equals
-Q(field__ne='value')       # not equals
-Q(field__gt=10)            # greater than
-Q(field__gte=10)           # greater or equal
-Q(field__lt=10)            # less than
-Q(field__lte=10)           # less or equal
-Q(field__contains='x')     # contains
-Q(field__startswith='x')   # starts with
-Q(field__endswith='x')     # ends with
-Q(field__in=[1,2,3])       # in list
-Q(field__has_any=[...])    # has any (M2M)
-Q(field__has_all=[...])    # has all (M2M)
-Q(field__has_none=[...])   # has none (M2M)
-```
+# Field builder (recommended)
+Field('name').equals(value)
+Field('name').not_equals(value)
+Field('name').greater_than(value)
+Field('name').greater_or_equal(value)
+Field('name').less_than(value)
+Field('name').less_or_equal(value)
+Field('name').contains(substring)
+Field('name').startswith(prefix)
+Field('name').endswith(suffix)
+Field('name').is_empty()
+Field('name').is_not_empty()
+Field('name').has_any([values])    # For array fields
+Field('name').has_all([values])    # Must have all
+Field('name').has_none([values])   # Must have none
 
-### Combining Rules
+# Q objects (Django-style)
+Q(field='value')              # equals
+Q(field__ne='value')          # not equals
+Q(field__gt=10)               # greater than
+Q(field__gte=10)              # greater or equal
+Q(field__lt=10)               # less than
+Q(field__lte=10)              # less or equal
+Q(field__contains='text')     # contains
+Q(field__has_any=[1,2])       # array operations
 
-```python
+# Combining rules
 rule1 & rule2    # AND
 rule1 | rule2    # OR
-~rule            # NOT
+~rule           # NOT
 
-# Or use functions
-from json_rule_engine import AND, OR, NOT
+# Helper functions
 AND(rule1, rule2, rule3)
 OR(rule1, rule2)
 NOT(rule)
 ```
 
-### JSON to Q Conversion
+## Supported Operators
 
+### Comparison
+- `==` (equals)
+- `!=` (not equals)
+- `>` (greater than)
+- `>=` (greater or equal)
+- `<` (less than)
+- `<=` (less or equal)
+
+### String
+- `contains` - Substring check
+- `startswith` - String prefix
+- `endswith` - String suffix
+- `is_empty` - Null or empty string
+- `is_not_empty` - Has value
+
+### Array/Set
+- `has_any` - Has at least one value
+- `has_all` - Has all values
+- `has_none` - Has none of the values
+- `is_in` - Value is in list
+
+### Logic
+- `&` / `AND` - Logical AND
+- `|` / `OR` - Logical OR
+- `~` / `NOT` - Logical NOT
+
+## Migration from v1.x
+
+Version 2.0 introduces a cleaner, unified API:
+
+### Old API (v1.x)
 ```python
-from json_rule_engine import json_to_q, to_q, JsonToQ
+# Multiple confusing entry points
+from json_rule_engine import evaluate, matches, to_q, json_to_q
 
-# Direct conversion
-q = json_to_q(json_dict)              # JSON dict → Q
-q = to_q(rule)                         # Rule builder → Q
-q = to_q(json_dict)                    # Also accepts JSON
-
-# Class-based with validation
-converter = JsonToQ(field_map={'tags': 'profile__tags__id'})
-q = converter.convert(json_dict)
-q, explanation = converter.convert_with_explanation(json_dict)
-is_valid, errors = converter.validate(json_dict)
+result = evaluate(rule, data)
+q = to_q(rule)
+q = json_to_q(json_rules)
 ```
 
-### RuleEngine
-
+### New API (v2.0)
 ```python
+# Single, clear entry point
 from json_rule_engine import RuleEngine
 
 engine = RuleEngine()
-
-# Evaluation
-result = engine.evaluate(rule, data)       # Any (raw result)
-result = engine.matches(rule, data)        # bool (True/False)
-
-# Object evaluation
-result = engine.test(rule, obj)            # EvalResult (with timing)
-results = engine.batch(rule, [objs])       # {'matches': [], 'non_matches': []}
-matches = engine.filter(rule, [objs])      # [matching objects]
-
-# Custom operators
-engine.register_operator('between', lambda vals, data: ...)
+result = engine.evaluate(rule, data)
+q = engine.to_q(rule)
 ```
 
-### Dependencies (for CDC)
+### Key Changes
+1. **Unified API**: All functionality through `RuleEngine` class
+2. **Configurable Dependencies**: No more hardcoded field assumptions
+3. **Cleaner Imports**: Single entry point for discoverability
+4. **Better Typing**: Full type hints throughout
 
+## Examples
+
+### E-commerce Product Filtering
 ```python
-rule = Field('city').eq('NYC') & Field('tags').has_any(['101'])
-deps = rule.get_dependencies()
+# Configure for e-commerce domain
+config = DependencyConfig(
+    id_fields={
+        'categories': 'category_ids',
+        'brands': 'brand_ids',
+        'tags': 'tag_ids'
+    }
+)
+engine = RuleEngine(dependency_config=config)
 
-deps.fields           # {'city'}
-deps.tag_ids          # {101}
-deps.phonebook_ids    # set()
-deps.custom_field_ids # set()
+# Build product filter rule
+rule = (
+    Field('price').between(10, 100) &
+    Field('categories').has_any(['electronics', 'computers']) &
+    Field('in_stock').equals(True) &
+    (Field('rating').gte(4) | Field('featured').equals(True))
+)
 
-# From JSON
-json_rule = JsonRule(json_dict)
-deps = json_rule.get_dependencies()
+# Filter products
+matching_products = engine.filter(rule, all_products)
 ```
 
-## Supported JsonLogic Operators
+### User Permission System
+```python
+# Define permission rule
+can_edit = (
+    Field('role').equals('admin') |
+    (
+        Field('role').equals('editor') &
+        Field('departments').has_any(['content', 'marketing'])
+    )
+)
 
-### Comparison
-`==`, `!=`, `===`, `!==`, `>`, `>=`, `<`, `<=`
+# Check user permission
+user_data = {
+    'role': 'editor',
+    'departments': ['content', 'design']
+}
+has_permission = engine.evaluate(can_edit, user_data)  # True
+```
 
-### Logic  
-`and`, `or`, `!`, `!!`, `if`, `?:`
+### Dynamic Form Validation
+```python
+# Build validation rule from configuration
+validation_rule = RuleBuilder.and_(
+    RuleBuilder.field('age').gte(18),
+    RuleBuilder.field('email').contains('@'),
+    RuleBuilder.or_(
+        RuleBuilder.field('phone').is_not_empty(),
+        RuleBuilder.field('email').is_not_empty()
+    )
+)
 
-### Array
-`in`, `some`, `all`, `none`, `merge`
+# Validate form submission
+form_data = {
+    'age': 25,
+    'email': 'user@example.com',
+    'phone': ''
+}
+is_valid = engine.matches(validation_rule, form_data)  # True
+```
 
-### String
-`in` (substring), `cat`
+## Contributing
 
-### Arithmetic
-`+`, `-`, `*`, `/`, `%`, `min`, `max`
-
-### Data
-`var`, `missing`
-
-### Custom (Extended)
-`_contains`, `_startswith`, `_endswith`, `_is_empty`, `_is_not_empty`
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-MIT
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+If you encounter any problems or have questions, please [open an issue](https://github.com/anandabehera/json-rule-engine/issues) on GitHub.
