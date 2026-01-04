@@ -38,7 +38,7 @@ extras_require['all'] = list(set(sum(extras_require.values(), [])))
 
 setup(
     name="json-rule-engine",
-    version="2.0.6",
+    version="2.1.0",
     author="Ananda Behera",
     author_email="behera.anand1@gmail.com",
     description="A lightweight library for building, evaluating, and translating JSON-based rules",

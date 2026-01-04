@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "json-rule-engine"
-version = "2.0.0"
+version = "2.1.0"
 description = "A lightweight library for building, evaluating, and translating JSON-based rules"
 readme = "README.md"
 requires-python = ">=3.8"
