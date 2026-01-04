@@ -84,7 +84,7 @@ contacts = Contact.objects.filter(q)
 The engine is fully configurable - no hardcoded assumptions:
 
 ```python
-from json_rule_engine import RuleEngine, DependencyConfig
+from json_rule_engine import RuleEngine, DependencyConfig, RuleFields
 
 # Configure for your domain (e-commerce example)
 config = DependencyConfig(
@@ -101,16 +101,16 @@ engine = RuleEngine(dependency_config=config)
 
 # Now your fields are recognized
 rule = Field('categories').has_any([101, 102])
-deps = engine.get_dependencies(rule)
+deps = engine.get_dependencies(rule)  # Returns RuleFields
 print(deps.id_references['category_ids'])  # {101, 102}
 ```
 
 ### Working with Objects
 
 ```python
-from json_rule_engine import Evaluatable
+from json_rule_engine import RuleEntity
 
-class Customer(Evaluatable):
+class Customer(RuleEntity):
     def __init__(self, name, age, city, tags=None):
         self.name = name
         self.age = age
@@ -144,7 +144,7 @@ print(f"Non-matches: {results['non_matches']}") # [Bob]
 nyc_adults = engine.filter(rule, customers)  # [Alice, Charlie]
 
 # Test with timing
-result = engine.test(rule, customers[0])
+result = engine.test(rule, customers[0])  # Returns EvaluationResult
 print(f"Match: {result.matches}, Time: {result.eval_time_ms}ms")
 ```
 
@@ -231,7 +231,7 @@ engine = RuleEngine(
 # Rule Evaluation
 engine.evaluate(rule, data)           # Evaluate rule against data
 engine.matches(rule, data)            # Returns bool
-engine.test(rule, obj)                # Test Evaluatable object with timing
+engine.test(rule, obj)                # Test RuleEntity object with timing
 engine.batch(rule, objects)           # Evaluate multiple objects
 engine.filter(rule, objects)          # Filter matching objects
 
@@ -241,7 +241,7 @@ engine.to_q_with_explanation(rule)    # Get Q object with explanation
 engine.validate_json_rules(json)      # Validate JSON structure
 
 # Dependency Extraction
-engine.get_dependencies(rule)         # Extract field dependencies
+engine.get_dependencies(rule)         # Extract field dependencies → RuleFields
 
 # Configuration
 engine.register_operator(name, func)  # Add custom operator
@@ -344,8 +344,12 @@ q = engine.to_q(rule)
 ### Key Changes
 1. **Unified API**: All functionality through `RuleEngine` class
 2. **Configurable Dependencies**: No more hardcoded field assumptions
-3. **Cleaner Imports**: Single entry point for discoverability
-4. **Better Typing**: Full type hints throughout
+3. **Professional Class Names**: 
+   - `Evaluatable` → `RuleEntity`
+   - `Dependencies` → `RuleFields`
+   - `EvalResult` → `EvaluationResult`
+4. **Cleaner Imports**: Single entry point for discoverability
+5. **Better Typing**: Full type hints throughout
 
 ## Examples
 
