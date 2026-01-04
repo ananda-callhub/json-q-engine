@@ -38,17 +38,17 @@ extras_require['all'] = list(set(sum(extras_require.values(), [])))
 
 setup(
     name="json-rule-engine",
-    version="1.0.0",
+    version="2.0.3",
     author="Ananda Behera",
-    author_email="ananda.behera@example.com",
+    author_email="behera.anand1@gmail.com",
     description="A lightweight library for building, evaluating, and translating JSON-based rules",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/anandabehera/json-rule-engine",
     project_urls={
-        "Bug Tracker": "https://github.com/anandabehera/json-rule-engine/issues",
+        "Bug Tracker": "https://github.com/ananda-callhub/json-rule-engine/issues",
         "Documentation": "https://json-rule-engine.readthedocs.io",
-        "Source Code": "https://github.com/anandabehera/json-rule-engine",
+        "Source Code": "https://github.com/ananda-callhub/json-rule-engine",
     },
     packages=find_packages(exclude=["tests", "tests.*", "examples", "examples.*"]),
     classifiers=[

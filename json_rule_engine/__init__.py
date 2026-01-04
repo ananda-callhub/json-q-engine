@@ -28,9 +28,9 @@ Quick Start:
 Documentation: https://github.com/anandabehera/json-rule-engine
 """
 
-__version__ = '2.0.0'  # Updated to 2.0.0 for breaking changes
+__version__ = '2.0.3'  # Updated to 2.0.3 for README improvements
 __author__ = 'Ananda Behera'
-__email__ = 'ananda.behera@example.com'
+__email__ = 'behera.anand1@gmail.com'
 __license__ = 'MIT'
 
 
